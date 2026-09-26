@@ -11,8 +11,18 @@ import { changeStatus, findMergeTargets, mergeInto, removePost, submitComment, s
 const textareaClass =
   "min-h-28 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-2 focus:outline-accent/25 aria-invalid:border-danger";
 
-export function NewPostForm({ orgSlug, boardId, boardName }: { orgSlug: string; boardId: string; boardName: string }) {
-  const [open, setOpen] = useState(false);
+export function NewPostForm({
+  orgSlug,
+  boardId,
+  boardName,
+  initiallyOpen = false,
+}: {
+  orgSlug: string;
+  boardId: string;
+  boardName: string;
+  initiallyOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
   const [state, action] = useActionState<FormState, FormData>(submitPost.bind(null, orgSlug, boardId), {});
 
   if (!open && !state.fieldErrors && !state.error) {

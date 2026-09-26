@@ -42,6 +42,7 @@ export default async function PublicBoardPage({ params, searchParams }: PageProp
     ),
   );
   const returnTo = `/b/${org}${currentQuery.size ? `?${currentQuery}` : ""}`;
+  const wantsToPost = param(query.new) === "1";
   const pageHref = (target: number) => {
     const next = new URLSearchParams(currentQuery);
     if (target > 1) next.set("page", String(target));
@@ -74,11 +75,12 @@ export default async function PublicBoardPage({ params, searchParams }: PageProp
       )}
 
       {session ? (
-        <NewPostForm key={current.id} orgSlug={org} boardId={current.id} boardName={current.name} />
+        <NewPostForm key={current.id} orgSlug={org} boardId={current.id} boardName={current.name} initiallyOpen={wantsToPost} />
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-surface px-4 py-3">
           <p className="text-sm text-muted">Sign in to suggest ideas and vote.</p>
-          <ButtonLink href={`/sign-in?next=${encodeURIComponent(returnTo)}`} variant="secondary" className="h-8 px-3">
+          {/* Arriving from the widget's "Suggest an idea" keeps that intent through sign-in. */}
+          <ButtonLink href={`/sign-in?next=${encodeURIComponent(wantsToPost ? `/b/${org}?new=1` : returnTo)}`} variant="secondary" className="h-8 px-3">
             Sign in
           </ButtonLink>
         </div>

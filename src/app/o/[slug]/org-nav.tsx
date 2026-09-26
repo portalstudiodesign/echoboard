@@ -7,6 +7,7 @@ export function OrgNav({ slug }: { slug: string }) {
   const pathname = usePathname();
   const links = [
     { href: `/o/${slug}`, label: "Overview" },
+    { href: `/o/${slug}/widget`, label: "Widget" },
     { href: `/o/${slug}/members`, label: "Team" },
   ];
   return (
