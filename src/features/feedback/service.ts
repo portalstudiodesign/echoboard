@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, ilike, inArray, ne, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, isNull, ne, sql, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Db } from "@/db/client";
 import { board, comment, member, organization, post, user, vote, type PostStatus } from "@/db/schema";
 
@@ -73,7 +74,7 @@ export async function listPosts(
     page?: number;
   },
 ) {
-  const filters: SQL[] = [eq(post.boardId, options.boardId)];
+  const filters: SQL[] = [eq(post.boardId, options.boardId), isNull(post.mergedIntoId)];
   const status = options.status ?? "active";
   if (status === "active") filters.push(ne(post.status, "closed"));
   else filters.push(eq(post.status, status));
@@ -103,9 +104,12 @@ export async function listPosts(
   return { posts: rows.slice(0, pageSize), hasMore: rows.length > pageSize };
 }
 
+const mergeTarget = alias(post, "merge_target");
+
 export async function getPost(db: Db, postId: string, viewerId?: string) {
   const [row] = await db
     .select({
+      mergedInto: { id: mergeTarget.id, title: mergeTarget.title },
       id: post.id,
       title: post.title,
       body: post.body,
@@ -122,6 +126,7 @@ export async function getPost(db: Db, postId: string, viewerId?: string) {
     .from(post)
     .innerJoin(board, eq(post.boardId, board.id))
     .leftJoin(user, eq(post.authorId, user.id))
+    .leftJoin(mergeTarget, eq(post.mergedIntoId, mergeTarget.id))
     .where(eq(post.id, postId))
     .limit(1);
   return row;
@@ -171,8 +176,122 @@ export async function addComment(db: Db, input: { postId: string; authorId: stri
   return created;
 }
 
+/** Returns true only when the status actually changed, so callers notify voters once. */
 export async function setPostStatus(db: Db, postId: string, status: PostStatus) {
-  await db.update(post).set({ status }).where(eq(post.id, postId));
+  const changed = await db
+    .update(post)
+    .set({ status })
+    .where(and(eq(post.id, postId), ne(post.status, status)))
+    .returning({ id: post.id });
+  return changed.length > 0;
+}
+
+export const roadmapStatuses = ["planned", "in_progress", "complete"] as const satisfies readonly PostStatus[];
+
+/** Posts the team has committed to, across every board of the organization, most wanted first. */
+export async function listRoadmap(db: Db, organizationId: string, perColumn = 50) {
+  const rows = await db
+    .select({
+      id: post.id,
+      title: post.title,
+      status: post.status,
+      voteCount: post.voteCount,
+      boardName: board.name,
+      // Rank within each column so one busy column can't crowd out the others.
+      rank: sql<number>`row_number() over (partition by ${post.status} order by ${post.voteCount} desc, ${post.createdAt} desc)`,
+    })
+    .from(post)
+    .innerJoin(board, eq(post.boardId, board.id))
+    .where(and(eq(board.organizationId, organizationId), inArray(post.status, roadmapStatuses), isNull(post.mergedIntoId)))
+    .orderBy(desc(post.voteCount), desc(post.createdAt));
+
+  const columns = Object.fromEntries(roadmapStatuses.map((status) => [status, [] as typeof rows])) as Record<
+    (typeof roadmapStatuses)[number],
+    typeof rows
+  >;
+  for (const row of rows) {
+    if (Number(row.rank) <= perColumn) columns[row.status as (typeof roadmapStatuses)[number]].push(row);
+  }
+  return columns;
+}
+
+/** Email addresses of everyone who voted for a post, except the person making the change. */
+export async function listVoterEmails(db: Db, postId: string, exceptUserId?: string) {
+  const rows = await db
+    .select({ email: user.email, name: user.name })
+    .from(vote)
+    .innerJoin(user, eq(vote.userId, user.id))
+    .where(and(eq(vote.postId, postId), exceptUserId ? ne(vote.userId, exceptUserId) : undefined));
+  return rows;
+}
+
+/** Other live posts in the same organization whose titles match — candidates to merge into. */
+export function searchMergeTargets(db: Db, input: { organizationId: string; excludePostId: string; search: string }) {
+  const search = input.search.trim().replace(/[\\%_]/g, "\\$&");
+  return db
+    .select({ id: post.id, title: post.title, voteCount: post.voteCount, boardName: board.name })
+    .from(post)
+    .innerJoin(board, eq(post.boardId, board.id))
+    .where(
+      and(
+        eq(board.organizationId, input.organizationId),
+        ne(post.id, input.excludePostId),
+        isNull(post.mergedIntoId),
+        search ? ilike(post.title, `%${search}%`) : undefined,
+      ),
+    )
+    .orderBy(desc(post.voteCount))
+    .limit(8);
+}
+
+export class MergeError extends Error {}
+
+/**
+ * Folds a duplicate into the post that stays. Votes move over without double-counting people
+ * who voted for both; the duplicate is closed and points at its replacement, and anything
+ * previously merged into the duplicate now points at the survivor too.
+ * Returns the voters of the duplicate who did not already support the survivor.
+ */
+export async function mergePost(db: Db, input: { duplicateId: string; targetId: string }) {
+  if (input.duplicateId === input.targetId) throw new MergeError("A post can't be merged into itself.");
+
+  return db.transaction(async (tx) => {
+    const posts = await tx
+      .select({ id: post.id, mergedIntoId: post.mergedIntoId, organizationId: board.organizationId })
+      .from(post)
+      .innerJoin(board, eq(post.boardId, board.id))
+      .where(inArray(post.id, [input.duplicateId, input.targetId]))
+      .for("update", { of: post });
+    const duplicate = posts.find((p) => p.id === input.duplicateId);
+    const target = posts.find((p) => p.id === input.targetId);
+    if (!duplicate || !target) throw new MergeError("One of these posts no longer exists.");
+    if (duplicate.organizationId !== target.organizationId) throw new MergeError("Posts can only be merged within one workspace.");
+    if (duplicate.mergedIntoId) throw new MergeError("This post was already merged.");
+    if (target.mergedIntoId) throw new MergeError("Pick a post that hasn't been merged itself.");
+
+    const newSupporters = await tx
+      .select({ userId: vote.userId, email: user.email, name: user.name })
+      .from(vote)
+      .innerJoin(user, eq(vote.userId, user.id))
+      .where(
+        and(
+          eq(vote.postId, input.duplicateId),
+          sql`not exists (select 1 from ${vote} v2 where v2.post_id = ${input.targetId} and v2.user_id = ${vote.userId})`,
+        ),
+      );
+
+    if (newSupporters.length > 0) {
+      await tx
+        .insert(vote)
+        .values(newSupporters.map((s) => ({ postId: input.targetId, userId: s.userId })))
+        .onConflictDoNothing();
+    }
+    await tx.delete(vote).where(eq(vote.postId, input.duplicateId));
+    await tx.update(post).set({ mergedIntoId: input.targetId }).where(eq(post.mergedIntoId, input.duplicateId));
+    await tx.update(post).set({ mergedIntoId: input.targetId, status: "closed" }).where(eq(post.id, input.duplicateId));
+
+    return newSupporters.map(({ email, name }) => ({ email, name }));
+  });
 }
 
 export async function deletePost(db: Db, postId: string) {

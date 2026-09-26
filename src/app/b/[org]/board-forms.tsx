@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { Alert, Button, Field, Input, Select } from "@/components/ui";
 import { postStatuses, statusLabels } from "@/features/feedback/statuses";
 import type { FormState } from "@/lib/forms";
-import { changeStatus, removePost, submitComment, submitPost } from "./actions";
+import { changeStatus, findMergeTargets, mergeInto, removePost, submitComment, submitPost, type MergeTarget } from "./actions";
 
 const textareaClass =
   "min-h-28 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-2 focus:outline-accent/25 aria-invalid:border-danger";
@@ -126,6 +126,83 @@ export function StaffControls({ orgSlug, postId, status }: { orgSlug: string; po
         </Button>
       </div>
       {error && <p className="text-sm text-danger">{error}</p>}
+      <MergePanel orgSlug={orgSlug} postId={postId} />
+    </div>
+  );
+}
+
+function MergePanel({ orgSlug, postId }: { orgSlug: string; postId: string }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<MergeTarget[]>();
+  const [error, setError] = useState<string>();
+  const [merging, startMerge] = useTransition();
+
+  // Debounced lookup; a stale response never overwrites a newer one.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const found = await findMergeTargets(orgSlug, postId, search);
+      if (!cancelled) setResults(found);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, search, orgSlug, postId]);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="self-start text-sm text-muted underline-offset-4 hover:text-text hover:underline">
+        Duplicate? Merge into another idea…
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3">
+      <label htmlFor="merge-search" className="text-sm font-medium">
+        Merge into…
+      </label>
+      <p className="text-xs text-muted">Votes move to the idea you pick (no one is counted twice) and this post closes with a link to it.</p>
+      <Input id="merge-search" type="search" placeholder="Search ideas in this workspace" value={search} onChange={(event) => setSearch(event.target.value)} autoFocus />
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <ul className="flex min-h-10 flex-col gap-1" aria-live="polite" aria-busy={results === undefined}>
+        {results === undefined ? (
+          <li className="px-1 py-2 text-sm text-muted">Searching…</li>
+        ) : results.length === 0 ? (
+          <li className="px-1 py-2 text-sm text-muted">No other ideas match.</li>
+        ) : (
+          results.map((target) => (
+            <li key={target.id} className="flex items-center gap-3 rounded-lg bg-surface px-3 py-2">
+              <span className="w-8 shrink-0 text-center text-sm font-semibold tabular-nums">{target.voteCount}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{target.title}</span>
+                <span className="block text-xs text-muted">{target.boardName}</span>
+              </span>
+              <Button
+                variant="secondary"
+                className="h-8 shrink-0 px-3 text-xs"
+                disabled={merging}
+                onClick={() => {
+                  if (!confirm(`Merge this idea into “${target.title}”? This can't be undone.`)) return;
+                  setError(undefined);
+                  startMerge(async () => {
+                    const result = await mergeInto(orgSlug, postId, target.id);
+                    if (result?.error) setError(result.error);
+                  });
+                }}
+              >
+                {merging ? "Merging…" : "Merge"}
+              </Button>
+            </li>
+          ))
+        )}
+      </ul>
+      <Button variant="ghost" className="h-8 self-start px-2 text-xs" onClick={() => setOpen(false)}>
+        Cancel
+      </Button>
     </div>
   );
 }

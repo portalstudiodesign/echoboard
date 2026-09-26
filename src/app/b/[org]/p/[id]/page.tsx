@@ -46,8 +46,20 @@ export default async function PostPage({ params }: PageProps<"/b/[org]/p/[id]">)
         ← {post.board.name}
       </Link>
 
+      {post.mergedInto?.id && (
+        <div className="rounded-xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm">
+          This idea was merged into{" "}
+          <Link href={`/b/${org}/p/${post.mergedInto.id}`} className="font-medium text-accent underline-offset-4 hover:underline">
+            {post.mergedInto.title}
+          </Link>
+          . Its votes count there now.
+        </div>
+      )}
+
       <article className="flex gap-4">
-        <VoteButton orgSlug={org} postId={post.id} voteCount={post.voteCount} hasVoted={post.hasVoted} returnTo={returnTo} size="lg" />
+        {!post.mergedInto?.id && (
+          <VoteButton orgSlug={org} postId={post.id} voteCount={post.voteCount} hasVoted={post.hasVoted} returnTo={returnTo} size="lg" />
+        )}
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold tracking-tight break-words">{post.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
@@ -60,9 +72,9 @@ export default async function PostPage({ params }: PageProps<"/b/[org]/p/[id]">)
         </div>
       </article>
 
-      {viewerIsStaff && <StaffControls key={post.status} orgSlug={org} postId={post.id} status={post.status} />}
+      {viewerIsStaff && !post.mergedInto?.id && <StaffControls key={post.status} orgSlug={org} postId={post.id} status={post.status} />}
 
-      <section className="flex flex-col gap-4">
+      <section className={`flex flex-col gap-4 ${post.mergedInto?.id && comments.length === 0 ? "hidden" : ""}`}>
         <h2 className="font-medium">
           {comments.length === 0 ? "Comments" : `${comments.length} ${comments.length === 1 ? "comment" : "comments"}`}
         </h2>
@@ -89,7 +101,7 @@ export default async function PostPage({ params }: PageProps<"/b/[org]/p/[id]">)
             </ul>
           </Card>
         )}
-        {session ? (
+        {post.mergedInto?.id ? null : session ? (
           <CommentForm orgSlug={org} postId={post.id} />
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-surface px-4 py-3">

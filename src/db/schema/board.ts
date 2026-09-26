@@ -1,5 +1,17 @@
 import { relations, sql } from "drizzle-orm";
-import { check, index, integer, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 // Relative (not "@/…") so drizzle-kit can resolve it outside the Next.js/Vitest toolchain.
 import { postStatuses } from "../../features/feedback/statuses";
 import { organization, user } from "./auth";
@@ -37,6 +49,8 @@ export const post = pgTable(
     // Denormalised so boards can sort by votes without aggregating on every read.
     voteCount: integer().notNull().default(0),
     commentCount: integer().notNull().default(0),
+    // Set when the team merges a duplicate: its votes move to this post and it leaves the board.
+    mergedIntoId: uuid().references((): AnyPgColumn => post.id, { onDelete: "set null" }),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
       .notNull()
@@ -46,7 +60,9 @@ export const post = pgTable(
   (table) => [
     index("post_board_votes_idx").on(table.boardId, table.voteCount),
     index("post_board_created_idx").on(table.boardId, table.createdAt),
+    index("post_status_idx").on(table.status),
     check("post_vote_count_non_negative", sql`${table.voteCount} >= 0`),
+    check("post_not_merged_into_itself", sql`${table.mergedIntoId} <> ${table.id}`),
   ],
 );
 

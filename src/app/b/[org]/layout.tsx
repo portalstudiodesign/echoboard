@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { findOrganizationBySlug, isStaff } from "@/features/feedback/service";
 import { getSession } from "@/lib/session";
 import { getPublicOrganization } from "./organization";
+import { PublicNav } from "./public-nav";
 
 export async function generateMetadata({ params }: LayoutProps<"/b/[org]">): Promise<Metadata> {
   const { org } = await params;
@@ -48,6 +49,7 @@ export default async function PublicBoardLayout({ children, params }: LayoutProp
             )}
           </div>
         </div>
+        <PublicNav orgSlug={org} />
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
       <footer className="py-6 text-center text-xs text-muted">
