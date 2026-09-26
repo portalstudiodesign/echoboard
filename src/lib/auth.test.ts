@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Db } from "@/db/client";
+import { listBoards } from "@/features/feedback/service";
 import { createAuth, type Auth } from "@/lib/auth";
 import { createTestDb } from "@/test/db";
 
@@ -14,9 +16,11 @@ async function signUp(auth: Auth, email: string, name: string) {
 
 describe("auth & organizations", () => {
   let auth: Auth;
+  let db: Db;
 
   beforeEach(async () => {
-    auth = createAuth(await createTestDb(), { inNextRuntime: false });
+    db = await createTestDb();
+    auth = createAuth(db, { inNextRuntime: false });
   });
 
   it("signs a user up and returns their session", async () => {
@@ -32,6 +36,13 @@ describe("auth & organizations", () => {
       body: { name: "Acme", slug: "acme" },
     });
     expect(org?.members[0]?.role).toBe("owner");
+  });
+
+  it("gives every new organization a default board", async () => {
+    const headers = await signUp(auth, "ana@example.com", "Ana");
+    const org = await auth.api.createOrganization({ headers, body: { name: "Acme", slug: "acme" } });
+    const boards = await listBoards(db, org!.id);
+    expect(boards.map((b) => b.slug)).toEqual(["feature-requests"]);
   });
 
   it("lets an invited user join with the invited role", async () => {

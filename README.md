@@ -33,7 +33,7 @@ npm run dev            # applies migrations, starts http://localhost:3000
 
 - [x] Project setup, database, CI
 - [x] Accounts, organizations, roles, invitations
-- [ ] Public boards: posts, votes, comments, statuses
+- [x] Public boards: posts, votes, comments, statuses
 - [ ] Public roadmap, moderation, status-change emails
 - [ ] Embeddable widget
 - [ ] Billing (Stripe): Free & Pro plans

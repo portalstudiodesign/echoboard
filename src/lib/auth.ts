@@ -4,6 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 import { db, type Db } from "@/db/client";
 import * as schema from "@/db/schema";
+import { createBoard } from "@/features/feedback/service";
 import { sendEmail } from "@/lib/email";
 
 export const appUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
@@ -21,6 +22,17 @@ export function createAuth(database: Db, options: { inNextRuntime: boolean }) {
       organization({
         creatorRole: "owner",
         invitationExpiresIn: 60 * 60 * 24 * 7,
+        organizationHooks: {
+          // Every workspace starts with a board, so its public page is never empty-handed.
+          async afterCreateOrganization({ organization }) {
+            await createBoard(database, {
+              organizationId: organization.id,
+              name: "Feature requests",
+              slug: "feature-requests",
+              description: "Tell us what would make the product better for you.",
+            });
+          },
+        },
         async sendInvitationEmail({ id, email, organization, inviter }) {
           await sendEmail({
             to: email,
