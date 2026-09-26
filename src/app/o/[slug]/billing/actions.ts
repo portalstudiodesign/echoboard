@@ -57,7 +57,7 @@ export async function openBillingPortal(slug: string): Promise<FormState> {
   let url: string;
   try {
     const { stripe, customerId } = await stripeCustomerFor(slug);
-    const portal = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: `${appUrl}/o/${slug}/billing` });
+    const portal = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: `${appUrl}/o/${slug}/billing/return?from=portal` });
     url = portal.url;
   } catch (error) {
     const message = (error as Error).message;

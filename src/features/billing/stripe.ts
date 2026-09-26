@@ -18,23 +18,26 @@ let client: Stripe | undefined;
 export function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new BillingNotConfiguredError();
-  if (key.startsWith("sk_live_") && process.env.ALLOW_LIVE_STRIPE !== "true") {
+  if (/^(sk|rk)_live_/.test(key) && process.env.ALLOW_LIVE_STRIPE !== "true") {
     // A portfolio deployment should never take real money by accident.
-    throw new Error("Refusing to use a live Stripe key. Use a test key (sk_test_…).");
+    throw new Error("Refusing to use a live Stripe key. Use a test key (sk_test_… or rk_test_…).");
   }
   return (client ??= new Stripe(key));
 }
 
 export function snapshotFromStripe(sub: Stripe.Subscription): SubscriptionSnapshot {
   const item = sub.items.data[0];
+  const currentPeriodEnd = item ? new Date(item.current_period_end * 1000) : null;
   return {
     customerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
     subscriptionId: sub.id,
     status: sub.status,
     priceLookupKey: item?.price.lookup_key ?? null,
     // Since API version 2025-03-31 the billing period lives on the subscription item.
-    currentPeriodEnd: item ? new Date(item.current_period_end * 1000) : null,
-    cancelAtPeriodEnd: sub.cancel_at_period_end,
+    currentPeriodEnd,
+    // The billing portal schedules cancellations with `cancel_at` (and leaves
+    // `cancel_at_period_end` false); the API flag means the same thing. Accept either.
+    cancelAt: sub.cancel_at ? new Date(sub.cancel_at * 1000) : sub.cancel_at_period_end ? currentPeriodEnd : null,
   };
 }
 
@@ -45,6 +48,17 @@ export async function syncSubscription(db: Db, sub: Stripe.Subscription) {
   if (!organizationId) return { synced: false as const, reason: "unknown customer" };
   await applySubscription(db, organizationId, snapshot);
   return { synced: true as const, organizationId };
+}
+
+/**
+ * Re-reads the workspace's latest subscription straight from Stripe. Used when the customer
+ * comes back from the billing portal, so a cancel or card change shows at once instead of
+ * whenever the webhook lands.
+ */
+export async function refreshFromStripe(db: Db, stripe: Stripe, customerId: string) {
+  const { data } = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 1 });
+  if (!data[0]) return { synced: false as const, reason: "no subscription" };
+  return syncSubscription(db, data[0]);
 }
 
 const subscriptionEvents = new Set<string>([

@@ -10,7 +10,8 @@ export type SubscriptionSnapshot = {
   status: string;
   priceLookupKey: string | null;
   currentPeriodEnd: Date | null;
-  cancelAtPeriodEnd: boolean;
+  /** When a scheduled cancellation takes effect; null while the subscription renews. */
+  cancelAt: Date | null;
 };
 
 export async function getBilling(db: Db, organizationId: string) {
@@ -89,7 +90,7 @@ export async function applySubscription(db: Db, organizationId: string, snapshot
     status: snapshot.status,
     priceLookupKey: snapshot.priceLookupKey,
     currentPeriodEnd: snapshot.currentPeriodEnd,
-    cancelAtPeriodEnd: snapshot.cancelAtPeriodEnd,
+    cancelAt: snapshot.cancelAt,
   };
   await db
     .insert(subscription)

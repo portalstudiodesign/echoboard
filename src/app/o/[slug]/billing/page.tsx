@@ -43,7 +43,9 @@ export default async function BillingPage({ params, searchParams }: PageProps<"/
   const isOwner = role === "owner";
   const configured = isBillingConfigured();
   const price = `$${proPrice.unitAmount / 100}`;
-  const renewal = subscription?.currentPeriodEnd?.toLocaleDateString("en", { month: "long", day: "numeric", year: "numeric" });
+  const formatDate = (date: Date | null | undefined) => date?.toLocaleDateString("en", { month: "long", day: "numeric", year: "numeric" });
+  const renewal = formatDate(subscription?.currentPeriodEnd);
+  const endsOn = formatDate(subscription?.cancelAt);
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,8 +65,8 @@ export default async function BillingPage({ params, searchParams }: PageProps<"/
             <h2 className="text-lg font-semibold">{plan === "pro" ? "Pro" : "Free"}</h2>
             <Badge tone={plan === "pro" ? "accent" : "neutral"}>Current plan</Badge>
           </div>
-          {plan === "pro" && renewal && (
-            <p className="text-sm text-muted">{subscription?.cancelAtPeriodEnd ? `Ends on ${renewal}` : `Renews on ${renewal}`}</p>
+          {plan === "pro" && (endsOn || renewal) && (
+            <p className="text-sm text-muted">{endsOn ? `Ends on ${endsOn} — you keep Pro until then` : `Renews on ${renewal}`}</p>
           )}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

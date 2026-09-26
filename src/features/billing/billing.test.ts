@@ -16,17 +16,20 @@ const activePro: SubscriptionSnapshot = {
   status: "active",
   priceLookupKey: "echoboard_pro_monthly",
   currentPeriodEnd: new Date("2026-11-01T00:00:00Z"),
-  cancelAtPeriodEnd: false,
+  cancelAt: null,
 };
 
 /** The subset of a Stripe subscription object our code reads, shaped like the real API payload. */
-function stripeSubscription(overrides: { status?: string; metadata?: Record<string, string>; customer?: string } = {}) {
+function stripeSubscription(
+  overrides: { status?: string; metadata?: Record<string, string>; customer?: string; cancel_at?: number; cancel_at_period_end?: boolean } = {},
+) {
   return {
     id: "sub_123",
     object: "subscription",
     customer: overrides.customer ?? "cus_123",
     status: overrides.status ?? "active",
-    cancel_at_period_end: false,
+    cancel_at: overrides.cancel_at ?? null,
+    cancel_at_period_end: overrides.cancel_at_period_end ?? false,
     metadata: overrides.metadata ?? {},
     items: { data: [{ current_period_end: 1_793_491_200, price: { lookup_key: "echoboard_pro_monthly" } }] },
   } as unknown as Stripe.Subscription;
@@ -92,6 +95,14 @@ describe("billing", () => {
       priceLookupKey: "echoboard_pro_monthly",
       currentPeriodEnd: new Date(1_793_491_200 * 1000),
     });
+  });
+
+  it("recognises a scheduled cancellation however Stripe expresses it", () => {
+    // The billing portal sets cancel_at and leaves cancel_at_period_end false (seen against the real API).
+    expect(snapshotFromStripe(stripeSubscription({ cancel_at: 1_793_000_000 })).cancelAt).toEqual(new Date(1_793_000_000 * 1000));
+    // The API flag alone means "at the end of the current period".
+    expect(snapshotFromStripe(stripeSubscription({ cancel_at_period_end: true })).cancelAt).toEqual(new Date(1_793_491_200 * 1000));
+    expect(snapshotFromStripe(stripeSubscription()).cancelAt).toBeNull();
   });
 
   describe("webhooks", () => {

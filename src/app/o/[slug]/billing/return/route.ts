@@ -1,24 +1,35 @@
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { getStripe, syncSubscription } from "@/features/billing/stripe";
+import { getBilling } from "@/features/billing/service";
+import { getStripe, refreshFromStripe, syncSubscription } from "@/features/billing/stripe";
 import { requireMembership } from "@/lib/session";
 
 /**
- * Stripe Checkout sends the customer back here. Syncing now (instead of waiting for the
- * webhook) means the upgrade shows immediately — and works locally where no webhook can reach us.
- * The webhook still runs in production and simply rewrites the same snapshot.
+ * Stripe sends the customer back here from Checkout (?session_id=…) and from the billing
+ * portal (?from=portal). Syncing now, instead of waiting for the webhook, means changes show
+ * immediately — and work locally, where no webhook can reach us. In production the webhook
+ * still arrives and simply rewrites the same snapshot.
  */
 export async function GET(request: Request, { params }: RouteContext<"/o/[slug]/billing/return">) {
   const { slug } = await params;
   const { organization } = await requireMembership(slug);
-  const sessionId = new URL(request.url).searchParams.get("session_id");
-  if (!sessionId) redirect(`/o/${slug}/billing`);
+  const search = new URL(request.url).searchParams;
+  const stripe = getStripe();
 
-  const session = await getStripe().checkout.sessions.retrieve(sessionId, { expand: ["subscription"] });
-  // Never let one workspace claim another's checkout by swapping the session id in the URL.
-  if (session.client_reference_id !== organization.id || !session.subscription || typeof session.subscription === "string") {
-    redirect(`/o/${slug}/billing`);
+  const sessionId = search.get("session_id");
+  if (sessionId) {
+    const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["subscription"] });
+    // Never let one workspace claim another's checkout by swapping the session id in the URL.
+    if (session.client_reference_id !== organization.id || !session.subscription || typeof session.subscription === "string") {
+      redirect(`/o/${slug}/billing`);
+    }
+    await syncSubscription(db, session.subscription);
+    redirect(`/o/${slug}/billing?upgraded=1`);
   }
-  await syncSubscription(db, session.subscription);
-  redirect(`/o/${slug}/billing?upgraded=1`);
+
+  if (search.get("from") === "portal") {
+    const { subscription } = await getBilling(db, organization.id);
+    if (subscription?.stripeCustomerId) await refreshFromStripe(db, stripe, subscription.stripeCustomerId);
+  }
+  redirect(`/o/${slug}/billing`);
 }

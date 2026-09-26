@@ -52,6 +52,21 @@ hand-off (signed SSO tokens), which is a deliberate non-goal for v1.
 **Clickjacking.** Every page sends `frame-ancestors 'self'` / `X-Frame-Options: SAMEORIGIN`, except `/embed/*`,
 which exists to be framed and has no actions to hijack.
 
+## Billing
+
+Free (1 board, 3 team seats, “Powered by” branding) and Pro ($19/mo, unlimited) via **Stripe Checkout** and
+the **customer portal**. Limits are enforced on the server — in the actions and again in Better Auth's
+`membershipLimit`, so accepting an invitation can't bypass the seat cap.
+
+The subscription is mirrored locally as a **full snapshot** of Stripe's object, never a delta, so replayed or
+reordered webhooks converge on the same state. The snapshot is written from three places: signature-verified
+webhooks (`/api/stripe/webhook`), the Checkout return URL and the portal return URL. The return-URL syncs make
+changes show instantly and let billing work locally without a webhook tunnel.
+
+Things learned against the real API (and covered by tests): since API version 2025-03-31 the billing period
+lives on the subscription *item*, and the portal schedules cancellations with `cancel_at` rather than
+`cancel_at_period_end`. Live keys are refused unless `ALLOW_LIVE_STRIPE=true`.
+
 ## Roadmap
 
 - [x] Project setup, database, CI
@@ -59,5 +74,5 @@ which exists to be framed and has no actions to hijack.
 - [x] Public boards: posts, votes, comments, statuses
 - [x] Public roadmap, moderation, status-change emails
 - [x] Embeddable widget
-- [ ] Billing (Stripe): Free & Pro plans
+- [x] Billing (Stripe): Free & Pro plans
 - [ ] Landing page, demo data, deployment

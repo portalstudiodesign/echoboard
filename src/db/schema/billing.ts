@@ -1,4 +1,4 @@
-import { boolean, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 import { organization } from "./auth";
 
 /**
@@ -17,7 +17,8 @@ export const subscription = pgTable(
     status: text().notNull().default("none"),
     priceLookupKey: text(),
     currentPeriodEnd: timestamp({ withTimezone: true }),
-    cancelAtPeriodEnd: boolean().notNull().default(false),
+    // When a scheduled cancellation takes effect (null = renews).
+    cancelAt: timestamp({ withTimezone: true }),
     updatedAt: timestamp({ withTimezone: true })
       .notNull()
       .defaultNow()
