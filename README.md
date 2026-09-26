@@ -32,7 +32,7 @@ npm run dev            # applies migrations, starts http://localhost:3000
 ## Roadmap
 
 - [x] Project setup, database, CI
-- [ ] Accounts, organizations, roles, invitations
+- [x] Accounts, organizations, roles, invitations
 - [ ] Public boards: posts, votes, comments, statuses
 - [ ] Public roadmap, moderation, status-change emails
 - [ ] Embeddable widget
