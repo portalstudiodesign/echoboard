@@ -8,7 +8,10 @@ import { getBilling } from "@/features/billing/service";
 import { createBoard } from "@/features/feedback/service";
 import { sendEmail } from "@/lib/email";
 
-export const appUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+/** Public base URL: explicit config first, then Vercel's production domain, then local dev. */
+export const appUrl =
+  process.env.BETTER_AUTH_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
 
 /** Built from a database handle so tests can run the real auth stack against an in-memory Postgres. */
 export function createAuth(database: Db, options: { inNextRuntime: boolean }) {
