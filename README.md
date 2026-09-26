@@ -8,7 +8,7 @@ A portfolio project built like a product: multi-tenant workspaces, a public boar
 roadmap, an embeddable widget, voter notifications and Stripe subscriptions — with integration tests against a
 real Postgres and CI on every push.
 
-**Try it:** the demo board at `/b/orbit` (a fictional calendar app), or sign up and create your own workspace.
+**Live:** [echoboard-nine.vercel.app](https://echoboard-nine.vercel.app) · demo board: [/b/orbit](https://echoboard-nine.vercel.app/b/orbit) (a fictional calendar app) — or sign up and create your own workspace.
 
 ## Features
 

@@ -32,7 +32,8 @@ function connect(url: string): Connection {
     lockDataDirectory(target);
     return { driver: "pglite", db: drizzlePglite({ client: new PGlite(target), schema, casing: "snake_case" }) };
   }
-  const client = postgres(url, { max: 5, prepare: false });
+  // prepare: false for poolers like Neon's; notices ("schema already exists, skipping") are noise.
+  const client = postgres(url, { max: 5, prepare: false, onnotice: () => {} });
   return { driver: "postgres", db: drizzlePostgres({ client, schema, casing: "snake_case" }) };
 }
 
