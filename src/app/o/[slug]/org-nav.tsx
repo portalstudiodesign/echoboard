@@ -9,6 +9,7 @@ export function OrgNav({ slug }: { slug: string }) {
     { href: `/o/${slug}`, label: "Overview" },
     { href: `/o/${slug}/widget`, label: "Widget" },
     { href: `/o/${slug}/members`, label: "Team" },
+    { href: `/o/${slug}/billing`, label: "Billing" },
   ];
   return (
     <nav className="mx-auto flex w-full max-w-5xl gap-1 px-2">

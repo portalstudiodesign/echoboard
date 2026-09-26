@@ -4,6 +4,7 @@ import { nextCookies } from "better-auth/next-js";
 import { organization } from "better-auth/plugins";
 import { db, type Db } from "@/db/client";
 import * as schema from "@/db/schema";
+import { getBilling } from "@/features/billing/service";
 import { createBoard } from "@/features/feedback/service";
 import { sendEmail } from "@/lib/email";
 
@@ -22,6 +23,8 @@ export function createAuth(database: Db, options: { inNextRuntime: boolean }) {
       organization({
         creatorRole: "owner",
         invitationExpiresIn: 60 * 60 * 24 * 7,
+        // Backstop for the seat check in the invite action: joining can't exceed the plan either.
+        membershipLimit: async (_, organization) => (await getBilling(database, organization.id)).limits.teamSeats,
         organizationHooks: {
           // Every workspace starts with a board, so its public page is never empty-handed.
           async afterCreateOrganization({ organization }) {

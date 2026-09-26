@@ -3,6 +3,8 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { db } from "@/db/client";
+import { checkSeatLimit } from "@/features/billing/service";
 import { auth } from "@/lib/auth";
 import { authErrorMessage, fieldErrors, formValues, type FormState } from "@/lib/forms";
 import { canManageTeam } from "@/lib/roles";
@@ -24,6 +26,9 @@ export async function inviteMember(slug: string, _: FormState, formData: FormDat
   const values = formValues(formData);
   const parsed = inviteSchema.safeParse(values);
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
+
+  const limit = await checkSeatLimit(db, organization.id);
+  if (!limit.allowed) return { error: limit.message, upgradeRequired: true, values };
 
   try {
     await auth.api.createInvitation({

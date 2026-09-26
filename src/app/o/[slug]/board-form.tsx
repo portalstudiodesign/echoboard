@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { Alert, Field, Input } from "@/components/ui";
+import { Alert, Field, FormError, Input } from "@/components/ui";
 import type { FormState } from "@/lib/forms";
 import { addBoard } from "./actions";
 
@@ -15,7 +15,7 @@ export function NewBoardForm({ orgSlug }: { orgSlug: string }) {
 
   return (
     <form ref={formRef} action={action} className="flex flex-col gap-3" noValidate>
-      {state.error && <Alert>{state.error}</Alert>}
+      <FormError error={state.error} upgradeRequired={state.upgradeRequired} billingHref={`/o/${orgSlug}/billing`} />
       {state.success && <Alert tone="success">{state.success}</Alert>}
       <div className="grid gap-3 sm:grid-cols-[1fr_2fr]">
         <Field label="Name" htmlFor="board-name" error={state.fieldErrors?.name}>

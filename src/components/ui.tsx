@@ -83,6 +83,24 @@ export function Alert({ tone = "danger", children }: { tone?: "danger" | "succes
   );
 }
 
+/** A form-level error; plan-limit errors also link to the billing page. */
+export function FormError({ error, upgradeRequired, billingHref }: { error?: string; upgradeRequired?: boolean; billingHref: string }) {
+  if (!error) return null;
+  return (
+    <Alert>
+      {error}
+      {upgradeRequired && (
+        <>
+          {" "}
+          <Link href={billingHref} className="font-medium underline underline-offset-4">
+            See plans →
+          </Link>
+        </>
+      )}
+    </Alert>
+  );
+}
+
 export function Card({ className, ...props }: ComponentProps<"div">) {
   return <div className={cx("rounded-xl border border-border bg-surface", className)} {...props} />;
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { checkBoardLimit } from "@/features/billing/service";
 import { createBoard } from "@/features/feedback/service";
 import { fieldErrors, formValues, type FormState } from "@/lib/forms";
 import { canManageTeam } from "@/lib/roles";
@@ -21,6 +22,9 @@ export async function addBoard(orgSlug: string, _: FormState, formData: FormData
   const values = formValues(formData);
   const parsed = boardSchema.safeParse(values);
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error), values };
+
+  const limit = await checkBoardLimit(db, organization.id);
+  if (!limit.allowed) return { error: limit.message, upgradeRequired: true, values };
 
   const slug = slugify(parsed.data.name);
   if (!slugPattern.test(slug)) return { fieldErrors: { name: "Use at least one letter or number" }, values };

@@ -5,6 +5,8 @@ export type FormState = {
   error?: string;
   success?: string;
   fieldErrors?: Record<string, string | undefined>;
+  /** Set when the action was refused because of the plan — the form offers a way to upgrade. */
+  upgradeRequired?: boolean;
   /** Echoed back so fields keep their input after a failed submit. */
   values?: Record<string, string>;
 };

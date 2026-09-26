@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useTransition } from "react";
 import { SubmitButton } from "@/components/submit-button";
-import { Alert, Button, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, Field, FormError, Input, Select } from "@/components/ui";
 import type { FormState } from "@/lib/forms";
 import { cancelInvitation, changeRole, inviteMember, removeMember } from "./actions";
 
@@ -16,7 +16,7 @@ export function InviteForm({ slug }: { slug: string }) {
 
   return (
     <form ref={formRef} action={action} className="flex flex-col gap-3" noValidate>
-      {state.error && <Alert>{state.error}</Alert>}
+      <FormError error={state.error} upgradeRequired={state.upgradeRequired} billingHref={`/o/${slug}/billing`} />
       {state.success && <Alert tone="success">{state.success}</Alert>}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="flex-1">

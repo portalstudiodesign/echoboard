@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/db/client";
+import { getBilling } from "@/features/billing/service";
 import { findOrganizationBySlug, listBoards, listPosts, listRoadmap, roadmapStatuses } from "@/features/feedback/service";
 import { statusLabels, statusStyles } from "@/features/feedback/statuses";
 import { CloseButton } from "./close-button";
@@ -29,8 +30,9 @@ export default async function EmbedPage({ params, searchParams }: PageProps<"/em
   const view = param(query.view) === "roadmap" ? "roadmap" : "ideas";
   const search = param(query.q).slice(0, 100);
 
-  const boards = await listBoards(db, organization.id);
+  const [boards, billing] = await Promise.all([listBoards(db, organization.id), getBilling(db, organization.id)]);
   const board = boards[0];
+  const showBranding = billing.limits.showBranding;
 
   return (
     <div className="flex h-dvh flex-col bg-bg text-sm">
@@ -74,9 +76,11 @@ export default async function EmbedPage({ params, searchParams }: PageProps<"/em
         <a href={`/b/${org}?new=1`} {...external} className="flex h-9 flex-1 items-center justify-center rounded-lg bg-accent font-medium text-accent-fg hover:bg-accent-hover">
           Suggest an idea ↗
         </a>
-        <Link href="/" {...external} className="px-2 text-xs text-muted hover:text-text">
-          Echoboard
-        </Link>
+        {showBranding && (
+          <Link href="/" {...external} className="px-2 text-xs text-muted hover:text-text">
+            Echoboard
+          </Link>
+        )}
       </footer>
     </div>
   );

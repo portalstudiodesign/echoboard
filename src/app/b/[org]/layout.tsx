@@ -3,6 +3,7 @@ import Link from "next/link";
 import { signOut } from "@/app/(auth)/actions";
 import { Button, ButtonLink } from "@/components/ui";
 import { db } from "@/db/client";
+import { getBilling } from "@/features/billing/service";
 import { findOrganizationBySlug, isStaff } from "@/features/feedback/service";
 import { getSession } from "@/lib/session";
 import { getPublicOrganization } from "./organization";
@@ -18,7 +19,8 @@ export default async function PublicBoardLayout({ children, params }: LayoutProp
   const { org } = await params;
   const organization = await getPublicOrganization(org);
   const session = await getSession();
-  const staff = await isStaff(db, organization.id, session?.user.id);
+  const [staff, billing] = await Promise.all([isStaff(db, organization.id, session?.user.id), getBilling(db, organization.id)]);
+  const showBranding = billing.limits.showBranding;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -52,12 +54,16 @@ export default async function PublicBoardLayout({ children, params }: LayoutProp
         <PublicNav orgSlug={org} />
       </header>
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">{children}</main>
-      <footer className="py-6 text-center text-xs text-muted">
-        Powered by{" "}
-        <Link href="/" className="font-medium hover:text-text">
-          Echoboard
-        </Link>
-      </footer>
+      {showBranding ? (
+        <footer className="py-6 text-center text-xs text-muted">
+          Powered by{" "}
+          <Link href="/" className="font-medium hover:text-text">
+            Echoboard
+          </Link>
+        </footer>
+      ) : (
+        <div className="py-6" />
+      )}
     </div>
   );
 }

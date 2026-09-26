@@ -45,6 +45,21 @@ describe("auth & organizations", () => {
     expect(boards.map((b) => b.slug)).toEqual(["feature-requests"]);
   });
 
+  it("won't let a Free workspace grow past its seat limit, even bypassing the invite form", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const owner = await signUp(auth, "owner@example.com", "Owner");
+    const org = await auth.api.createOrganization({ headers: owner, body: { name: "Acme", slug: "acme" } });
+
+    const join = async (email: string) => {
+      const invitation = await auth.api.createInvitation({ headers: owner, body: { email, role: "member", organizationId: org!.id } });
+      const headers = await signUp(auth, email, email);
+      return auth.api.acceptInvitation({ headers, body: { invitationId: invitation.id } });
+    };
+    await join("two@example.com");
+    await join("three@example.com");
+    await expect(join("four@example.com")).rejects.toThrow();
+  });
+
   it("lets an invited user join with the invited role", async () => {
     const info = vi.spyOn(console, "info").mockImplementation(() => {});
     const owner = await signUp(auth, "ana@example.com", "Ana");
